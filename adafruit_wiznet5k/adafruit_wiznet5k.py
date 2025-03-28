@@ -181,6 +181,26 @@ def _unprettyfy(data: str, seperator: str, correct_length: int) -> bytes:
     raise ValueError("Invalid IP or MAC address.")
 
 
+def _use_default_pins() -> Tuple[busio.SPI, digitalio.DigitalInOut]:
+    """Use default W5K_ pins on WIZnet boards."""
+    try:
+        # pylint: disable=import-outside-toplevel
+        from board import (
+            W5K_MOSI,
+            W5K_MISO,
+            W5K_SCK,
+            W5K_CS,
+        )
+        from busio import SPI
+        from digitalio import (
+            DigitalInOut,
+        )
+
+        return SPI(W5K_SCK, MOSI=W5K_MOSI, MISO=W5K_MISO), DigitalInOut(W5K_CS)
+    except ImportError:
+        raise ValueError("spi_bus and cs are required parameters.") from None
+
+
 class WIZNET5K:  # pylint: disable=too-many-public-methods, too-many-instance-attributes
     """Interface for WIZNET5K module."""
 
@@ -211,22 +231,8 @@ class WIZNET5K:  # pylint: disable=too-many-public-methods, too-many-instance-at
         :param int spi_baudrate: The SPI clock frequency, defaults to 8MHz.
             Might not be the actual baudrate, dependent on the hardware.
         """
-        # Check for required parameters.
-        if not spi_bus or not cs:
-            try:
-                import board  # pylint: disable=import-outside-toplevel
-
-                if {"W5K_MOSI", "W5K_MISO", "W5K_CLK", "W5K_CS"}.issubset(dir(board)):
-                    # Use default WIZnet pins if they're defined for the board.
-                    spi_bus = busio.SPI(
-                        board.W5K_SCK, MOSI=board.W5K_MOSI, MISO=board.W5K_MISO
-                    )
-                    cs = digitalio.DigitalInOut(board.W5K_CS)
-                else:
-                    raise ValueError()
-            except (ImportError, ValueError):
-                raise ValueError("spi_bus and cs are required parameters.") from None
-
+        if not spi_bus and not cs:
+            spi_bus, cs = _use_default_pins()
         self._debug = debug
         self._chip_type = None
         self._device = SPIDevice(
