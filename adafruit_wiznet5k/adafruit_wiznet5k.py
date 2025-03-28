@@ -189,8 +189,8 @@ class WIZNET5K:  # pylint: disable=too-many-public-methods, too-many-instance-at
     # pylint: disable=too-many-arguments
     def __init__(
         self,
-        spi_bus: busio.SPI,
-        cs: digitalio.DigitalInOut,  # pylint: disable=invalid-name
+        spi_bus: busio.SPI = None,
+        cs: digitalio.DigitalInOut = None,  # pylint: disable=invalid-name
         reset: Optional[digitalio.DigitalInOut] = None,
         is_dhcp: bool = True,
         mac: Union[MacAddressRaw, str] = _DEFAULT_MAC,
@@ -211,6 +211,22 @@ class WIZNET5K:  # pylint: disable=too-many-public-methods, too-many-instance-at
         :param int spi_baudrate: The SPI clock frequency, defaults to 8MHz.
             Might not be the actual baudrate, dependent on the hardware.
         """
+        # Check for required parameters.
+        if not spi_bus or not cs:
+            try:
+                import board  # pylint: disable=import-outside-toplevel
+
+                if {"W5K_MOSI", "W5K_MISO", "W5K_CLK", "W5K_CS"}.issubset(dir(board)):
+                    # Use default WIZnet pins if they're defined for the board.
+                    spi_bus = busio.SPI(
+                        board.W5K_SCK, MOSI=board.W5K_MOSI, MISO=board.W5K_MISO
+                    )
+                    cs = digitalio.DigitalInOut(board.W5K_CS)
+                else:
+                    raise ValueError()
+            except (ImportError, ValueError):
+                raise ValueError("spi_bus and cs are required parameters.") from None
+
         self._debug = debug
         self._chip_type = None
         self._device = SPIDevice(
